@@ -1,0 +1,25 @@
+# Output sessions (large files, generated per run)
+output/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.env
+
+# Model weights (too large for git)
+data/*.tar
+data/*.pkl
+data/*.pt
+data/*.pth
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

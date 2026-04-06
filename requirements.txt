@@ -1,0 +1,15 @@
+# BLENDERFACE — dependencias
+# BETO-TRACE: BLENDERFACE.SEC8.TECH.FAN_MODEL
+face-alignment>=1.3.5
+
+# BETO-TRACE: BLENDERFACE.SEC8.TECH.DECA
+# DECA no está en PyPI — instalar manualmente:
+#   git clone https://github.com/YadiraF/DECA
+#   cd DECA && pip install -r requirements.txt
+# O alternativamente:
+#   pip install git+https://github.com/YadiraF/DECA
+torch>=1.9.0
+torchvision>=0.10.0
+numpy>=1.20.0
+Pillow>=8.0.0
+scipy>=1.7.0
