@@ -1,0 +1,20 @@
+# BETO-TRACE: BFMCP.SEC8.TECH.BLENDER_VERSION
+# BETO-TRACE: BFMCP.SEC2.SCOPE.BLENDER_MANIFEST
+# Blender 4.2+ Extension System manifest — replaces deprecated bl_info dict.
+# Required by Blender 5.1 extension loader.
+
+schema_version = "1.0.0"
+
+id            = "blenderface_mcp"
+version       = "1.0.0"
+name          = "BlenderFace MCP"
+tagline       = "MCP server for blenderface pipeline — Blender 5.1 compatible"
+maintainer    = "Alberto Ramirez"
+type          = "add-on"
+
+blender_version_min = "4.2.0"
+
+license = ["SPDX:GPL-3.0-or-later"]
+
+[permissions]
+network = "Serve local TCP socket for pipeline communication"

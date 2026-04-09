@@ -1,7 +1,9 @@
 # BETO-TRACE: BM.SEC1.INTENT.MATERIALIZE_IN_BLENDER
+# BETO-TRACE: MIGRATE.SEC3.OUTPUT.FRAMED_MATERIALIZER
 import json
 import os
 import socket
+import struct
 from typing import Optional
 
 from models.session import Session
@@ -9,7 +11,7 @@ from models.session import Session
 # BETO-TRACE: BM.SEC8.TECH.BLENDER_MCP_CHANNEL
 # Blender MCP addon escucha en localhost:9876 (BlenderConnection protocol)
 BLENDER_HOST = "172.31.128.1"  # Windows host IP desde WSL2
-BLENDER_PORT = 9876
+BLENDER_PORT = 7878
 
 
 class BlenderMaterializer:
@@ -126,11 +128,13 @@ else:
         return session
 
     # ─── Blender socket communication ────────────────────────────────────────
+    # BETO-TRACE: MIGRATE.SEC8.TECH.STRUCT_PACK_FRAMING
+    # BETO-TRACE: MIGRATE.SEC8.TECH.RECV_LOOP_FRAMING
 
     def _execute_in_blender(self, session: Session, code: str) -> Optional[str]:
         """
-        BETO-TRACE: BM.OQ-13 — resolved via direct socket to Blender addon (port 9876)
-        Mismo protocolo que blender-mcp BlenderConnection.send_command.
+        BETO-TRACE: BM.OQ-13 — protocol: blenderface-mcp framed TCP (4-byte big-endian length prefix)
+        Migrated from raw JSON protocol to framed protocol (MIGRATE.SEC3.OUTPUT.FRAMED_MATERIALIZER).
         """
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -138,40 +142,59 @@ else:
             sock.connect((BLENDER_HOST, BLENDER_PORT))
 
             command = json.dumps({"type": "execute_code", "params": {"code": code}})
-            sock.sendall(command.encode("utf-8"))
+            self._send_framed(sock, command.encode("utf-8"))
 
-            chunks = []
-            while True:
-                chunk = sock.recv(8192)
-                if not chunk:
-                    break
-                chunks.append(chunk)
-                try:
-                    data = b"".join(chunks)
-                    parsed = json.loads(data.decode("utf-8"))
-                    break
-                except json.JSONDecodeError:
-                    continue
-
+            data = self._recv_framed(sock)
             sock.close()
-            response = json.loads(b"".join(chunks).decode("utf-8"))
+
+            if data is None:
+                self._fail(session, "BLENDER_MCP_ERROR", "Connection closed before response received")
+                return None
+
+            response = json.loads(data.decode("utf-8"))
 
             if response.get("status") == "error":
                 self._fail(session, "BLENDER_MCP_ERROR",
                            response.get("message", "Unknown Blender error"))
                 return None
 
-            return str(response.get("result", {}).get("result", ""))
+            return str(response.get("result", {}).get("output", ""))
 
         except ConnectionRefusedError:
             # BETO-TRACE: BM.OQ-BM-01 — Blender no disponible
             self._fail(session, "BLENDER_MCP_UNAVAILABLE",
                        f"Cannot connect to Blender on {BLENDER_HOST}:{BLENDER_PORT}. "
-                       "Make sure Blender is open with the MCP addon running.")
+                       "Make sure Blender is open with the blenderface-mcp addon running.")
             return None
         except Exception as e:
             self._fail(session, "BLENDER_MCP_ERROR", str(e))
             return None
+
+    @staticmethod
+    def _send_framed(sock: socket.socket, data: bytes) -> None:
+        """BETO-TRACE: MIGRATE.SEC8.TECH.STRUCT_PACK_FRAMING — 4-byte big-endian length prefix."""
+        sock.sendall(struct.pack(">I", len(data)) + data)
+
+    @staticmethod
+    def _recv_framed(sock: socket.socket) -> Optional[bytes]:
+        """BETO-TRACE: MIGRATE.SEC8.TECH.RECV_LOOP_FRAMING — read header then exact payload."""
+        header = BlenderMaterializer._recv_exact(sock, 4)
+        if header is None:
+            return None
+        (payload_len,) = struct.unpack(">I", header)
+        if payload_len == 0:
+            return b""
+        return BlenderMaterializer._recv_exact(sock, payload_len)
+
+    @staticmethod
+    def _recv_exact(sock: socket.socket, n: int) -> Optional[bytes]:
+        buf = b""
+        while len(buf) < n:
+            chunk = sock.recv(n - len(buf))
+            if not chunk:
+                return None
+            buf += chunk
+        return buf
 
     # ─── helpers ──────────────────────────────────────────────────────────────
 

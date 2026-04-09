@@ -23,3 +23,6 @@ data/*.pth
 # OS
 .DS_Store
 Thumbs.db
+
+# Blender addon build artifacts
+*.zip
